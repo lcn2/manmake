@@ -7,5 +7,5 @@ if ( ! -f $ARGV[1] ) {
 $ARGV[0] =~ m:^(.*/)*([-a-zA-Z_0-9.]+)\..*$:;
 $f = $2;
 `tbl -TX $ARGV[0] | eqn | nroff -man >/tmp/$f`;
-`pack -f /tmp/$f`;
+`gzip --best -f /tmp/$f`;
 `mv /tmp/$f.z $ARGV[1]`;
