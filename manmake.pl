@@ -6,12 +6,7 @@
 # @(#) $Id$
 # @(#) $Source$
 #
-# Copyright (c) Landon Curt Noll, 1993.
-# All rights reserved.
-#
-# Written by Landon Curt Noll (chongo@toad.com).  Permission for BSDI for use 
-# in their BSD/386 product is hereby granted so long as this copyright and
-# notice remains unaltered.
+# Copyright (c) 1993 by Landon Curt Noll.  All Rights Reserved.
 #
 # Permission to use, copy, modify, and distribute this software and
 # its documentation for any purpose and without fee is hereby granted,
@@ -27,6 +22,13 @@
 # INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO
 # EVENT SHALL LANDON CURT NOLL BE LIABLE FOR ANY SPECIAL, INDIRECT OR
 # CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF
+# USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+# OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+#
+# chongo <was here> /\oo/\
+#
+# Share and enjoy!
 
 die "usage: $0 *roff_source dest_dir" if $#ARGV != 1;
 die "$0: missing file $ARGV[0]" if ( ! -s $ARGV[0] );
