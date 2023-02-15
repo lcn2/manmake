@@ -2,9 +2,9 @@
 #
 # manmake - make a catman page from a man page
 #
-# @(#) $Revision$
-# @(#) $Id$
-# @(#) $Source$
+# @(#) $Revision: 1.4 $
+# @(#) $Id: manmake.pl,v 1.4 1999/09/26 00:38:21 chongo Exp $
+# @(#) $Source: /usr/local/src/bin/manmake/RCS/manmake.pl,v $
 #
 # Copyright (c) 1993 by Landon Curt Noll.  All Rights Reserved.
 #
