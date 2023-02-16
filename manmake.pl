@@ -1,12 +1,8 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl -w
 #
 # manmake - make a catman page from a man page
 #
-# @(#) $Revision: 1.4 $
-# @(#) $Id: manmake.pl,v 1.4 1999/09/26 00:38:21 chongo Exp $
-# @(#) $Source: /usr/local/src/bin/manmake/RCS/manmake.pl,v $
-#
-# Copyright (c) 1993 by Landon Curt Noll.  All Rights Reserved.
+# Copyright (c) 1993,2023 by Landon Curt Noll.  All Rights Reserved.
 #
 # Permission to use, copy, modify, and distribute this software and
 # its documentation for any purpose and without fee is hereby granted,
