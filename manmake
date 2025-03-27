@@ -1,0 +1,330 @@
+#!/usr/bin/env bash
+#
+# manmake - make a compressed cat page from a man page
+#
+# Copyright (c) 1999,2023,2025 by Landon Curt Noll.  All Rights Reserved.
+#
+# Permission to use, copy, modify, and distribute this software and
+# its documentation for any purpose and without fee is hereby granted,
+# provided that the above copyright, this permission notice and text
+# this comment, and the disclaimer below appear in all of the following:
+#
+#       supporting documentation
+#       source copies
+#       source works derived from this source
+#       binaries derived from this source or from derived source
+#
+# LANDON CURT NOLL DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+# INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO
+# EVENT SHALL LANDON CURT NOLL BE LIABLE FOR ANY SPECIAL, INDIRECT OR
+# CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF
+# USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+# OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+#
+# chongo (Landon Curt Noll) /\oo/\
+#
+# http://www.isthe.com/chongo/index.html
+# https://github.com/lcn2
+#
+# Share and enjoy!  :-)
+
+
+# setup
+#
+export VERSION="1.1.0 2025-03-27"
+NAME=$(basename "$0")
+export NAME
+#
+export V_FLAG=0
+#
+export NOOP=
+export DO_NOT_PROCESS=
+
+
+# usage
+#
+export USAGE="usage: $0 [-h] [-v level] [-V] [-n] [-N] roff_file dest_dir
+
+    -h          print help message and exit
+    -v level    set verbosity level (def level: $V_FLAG)
+    -V          print version string and exit
+
+    -n          go thru the actions, but do not update any files (def: do the action)
+    -N          do not process anything, just parse arguments (def: process something)
+
+    roff_file	nroff / troff / man page file
+
+    dest_dir	directory where the cat page is to be formed
+
+Exit codes:
+     0         all OK
+     1         some internal tool exited non-zero
+     2         -h and help string printed or -V and version string printed
+     3         command line error
+     4	       cannot read roff_file
+     5	       dest_dir is not a writable directory
+     6	       conversion from man page to cat page failed
+     7	       failed to compressed the cat page
+     8	       failed to move compressed the cat page into place
+ >= 10         internal error
+
+$NAME version: $VERSION"
+
+
+# parse command line
+#
+while getopts :hv:VnN flag; do
+  case "$flag" in
+    h) echo "$USAGE"
+        exit 2
+        ;;
+    v) V_FLAG="$OPTARG"
+        ;;
+    V) echo "$VERSION"
+        exit 2
+        ;;
+    n) NOOP="-n"
+        ;;
+    N) DO_NOT_PROCESS="-N"
+        ;;
+    \?) echo "$0: ERROR: invalid option: -$OPTARG" 1>&2
+        echo 1>&2
+        echo "$USAGE" 1>&2
+        exit 3
+        ;;
+    :) echo "$0: ERROR: option -$OPTARG requires an argument" 1>&2
+        echo 1>&2
+        echo "$USAGE" 1>&2
+        exit 3
+        ;;
+    *) echo "$0: ERROR: unexpected value from getopts: $flag" 1>&2
+        echo 1>&2
+        echo "$USAGE" 1>&2
+        exit 3
+        ;;
+  esac
+done
+if [[ $V_FLAG -ge 1 ]]; then
+    echo "$0: debug[1]: debug level: $V_FLAG" 1>&2
+fi
+#
+# remove the options
+#
+shift $(( OPTIND - 1 ));
+#
+# verify arg count
+#
+if [[ $# -ne 2 ]]; then
+    echo "$0: ERROR: expected 2 args, found: $#" 1>&2
+    echo "$USAGE" 1>&2
+    exit 3
+fi
+#
+# parse args
+#
+export ROFF_FILE="$1"
+export DEST_DIR="$2"
+
+
+# firewall - roff_file must be a readable file
+#
+if [[ ! -e $ROFF_FILE ]]; then
+    echo "$0: ERROR: roff_file does not exist: $ROFF_FILE" 1>&2
+    exit 4
+fi
+if [[ ! -f $ROFF_FILE ]]; then
+    echo "$0: ERROR: roff_file is not a file: $ROFF_FILE" 1>&2
+    exit 4
+fi
+if [[ ! -r $ROFF_FILE ]]; then
+    echo "$0: ERROR: roff_file is not a readable file: $ROFF_FILE" 1>&2
+    exit 4
+fi
+
+
+# firewall - dest_dir must br a writable directory
+#
+if [[ ! -e $DEST_DIR ]]; then
+    echo "$0: ERROR: dest_dir does not exist: $DEST_DIR" 1>&2
+    exit 5
+fi
+if [[ ! -d $DEST_DIR ]]; then
+    echo "$0: ERROR: dest_dir is not a directory: $DEST_DIR" 1>&2
+    exit 5
+fi
+if [[ ! -w $DEST_DIR ]]; then
+    echo "$0: ERROR: dest_dir is not a writable directory: $DEST_DIR" 1>&2
+    exit 5
+fi
+
+
+# determine the final compressed cat filename
+#
+ROFF_FILE_BASENAME=$(basename "$ROFF_FILE")
+export ROFF_FILE_BASENAME
+export CAT_FILE="$DEST_DIR/$ROFF_FILE_BASENAME.gz"
+
+
+# print running info if verbose
+#
+# If -v 3 or higher, print exported variables in order that they were exported.
+#
+if [[ $V_FLAG -ge 3 ]]; then
+    echo "$0: debug[3]: VERSION=$VERSION" 1>&2
+    echo "$0: debug[3]: NAME=$NAME" 1>&2
+    echo "$0: debug[3]: V_FLAG=$V_FLAG" 1>&2
+    echo "$0: debug[3]: NOOP=$NOOP" 1>&2
+    echo "$0: debug[3]: DO_NOT_PROCESS=$DO_NOT_PROCESS" 1>&2
+    echo "$0: debug[3]: ROFF_FILE=$ROFF_FILE" 1>&2
+    echo "$0: debug[3]: DEST_DIR=$DEST_DIR" 1>&2
+    echo "$0: debug[3]: ROFF_FILE_BASENAME=$ROFF_FILE_BASENAME" 1>&2
+    echo "$0: debug[3]: CAT_FILE=$CAT_FILE" 1>&2
+fi
+
+
+# -N stops early before any processing is performed
+#
+if [[ -n $DO_NOT_PROCESS ]]; then
+    if [[ $V_FLAG -ge 3 ]]; then
+        echo "$0: debug[3]: arguments parsed, -N given, exiting 0" 1>&2
+    fi
+    exit 0
+fi
+
+
+# form temp filename
+#
+export TMP_AUTHOR_HANDLE_INVENTORY="$DEST_DIR/.tmp.$NAME.$$.tmp"
+export TMP_AUTHOR_HANDLE_INVENTORY_GZ="$DEST_DIR/.tmp.$NAME.$$.tmp.gz"
+if [[ $V_FLAG -ge 3 ]]; then
+    echo  "$0: debug[3]: temporary cat file: $TMP_AUTHOR_HANDLE_INVENTORY" 1>&2
+    echo  "$0: debug[3]: temporary zcat file: $TMP_AUTHOR_HANDLE_INVENTORY_GZ" 1>&2
+fi
+if [[ -z $NOOP ]]; then
+
+    trap 'rm -f $TMP_AUTHOR_HANDLE_INVENTORY $TMP_AUTHOR_HANDLE_INVENTORY_GZ; exit' 0 1 2 3 15
+    rm -f "$TMP_AUTHOR_HANDLE_INVENTORY"
+    if [[ -e $TMP_AUTHOR_HANDLE_INVENTORY ]]; then
+	echo "$0: ERROR: cannot remove temporary cat file: $TMP_AUTHOR_HANDLE_INVENTORY" 1>&2
+	exit 10
+    fi
+    rm -f "$TMP_AUTHOR_HANDLE_INVENTORY_GZ"
+    if [[ -e $TMP_AUTHOR_HANDLE_INVENTORY_GZ ]]; then
+	echo "$0: ERROR: cannot remove temporary zcat file: $TMP_AUTHOR_HANDLE_INVENTORY_GZ" 1>&2
+	exit 11
+    fi
+    : > "$TMP_AUTHOR_HANDLE_INVENTORY"
+    if [[ ! -e $TMP_AUTHOR_HANDLE_INVENTORY ]]; then
+	echo "$0: ERROR: cannot create temporary cat file: $TMP_AUTHOR_HANDLE_INVENTORY" 1>&2
+	exit 12
+    fi
+    : > "$TMP_AUTHOR_HANDLE_INVENTORY_GZ"
+    if [[ ! -e $TMP_AUTHOR_HANDLE_INVENTORY_GZ ]]; then
+	echo "$0: ERROR: cannot create temporary zcat file: $TMP_AUTHOR_HANDLE_INVENTORY_GZ" 1>&2
+	exit 13
+    fi
+
+elif [[ $V_FLAG -ge 5 ]]; then
+    echo  "$0: debug[5]: because of -n, did form temporary cat file: $TMP_AUTHOR_HANDLE_INVENTORY" 1>&2
+    echo  "$0: debug[5]: because of -n, did form temporary zcat file: $TMP_AUTHOR_HANDLE_INVENTORY_GZ" 1>&2
+fi
+
+
+# use man to form a cat page
+#
+if [[ $V_FLAG -ge 1 ]]; then
+    echo "$0: debug[1]: about to run: man -P cat $ROFF_FILE > $TMP_AUTHOR_HANDLE_INVENTORY" 1>&2
+fi
+if [[ -z $NOOP ]]; then
+
+    man -P cat "$ROFF_FILE" > "$TMP_AUTHOR_HANDLE_INVENTORY"
+    status="$?"
+    if [[ $status -ne 0 ]]; then
+	echo "$0: ERROR: man -P cat $ROFF_FILE > $TMP_AUTHOR_HANDLE_INVENTORY failed, error: $status" 1>&2
+	exit 6
+    fi
+    if [[ ! -f $TMP_AUTHOR_HANDLE_INVENTORY ]]; then
+	echo "$0: ERROR: man -P cat $ROFF_FILE > $TMP_AUTHOR_HANDLE_INVENTORY did not form a file" 1>&2
+	exit 6
+    fi
+    if [[ ! -s $TMP_AUTHOR_HANDLE_INVENTORY ]]; then
+	echo "$0: ERROR: man -P cat $ROFF_FILE > $TMP_AUTHOR_HANDLE_INVENTORY formed an empty file" 1>&2
+	exit 6
+    fi
+
+elif [[ $V_FLAG -ge 5 ]]; then
+    echo  "$0: debug[5]: because of -n, did not run: man -P cat $ROFF_FILE > $TMP_AUTHOR_HANDLE_INVENTORY" 1>&2
+fi
+
+
+# gzip compress the cat file
+#
+if [[ $V_FLAG -ge 1 ]]; then
+    echo "$0: debug[1]: about to run: gzip --best --force < $TMP_AUTHOR_HANDLE_INVENTORY " \
+	 "> $TMP_AUTHOR_HANDLE_INVENTORY_GZ" 1>&2
+fi
+if [[ -z $NOOP ]]; then
+
+    gzip --best --force < "$TMP_AUTHOR_HANDLE_INVENTORY" > "$TMP_AUTHOR_HANDLE_INVENTORY_GZ"
+    status="$?"
+    if [[ $status -ne 0 ]]; then
+	echo "$0: ERROR: gzip --best --force < $TMP_AUTHOR_HANDLE_INVENTORY " \
+	     "> $TMP_AUTHOR_HANDLE_INVENTORY_GZ failed, error: $status" 1>&2
+	exit 7
+    fi
+    if [[ ! -f $TMP_AUTHOR_HANDLE_INVENTORY ]]; then
+	echo "$0: ERROR: gzip --best --force < $TMP_AUTHOR_HANDLE_INVENTORY " \
+	     "> $TMP_AUTHOR_HANDLE_INVENTORY_GZ did not form a file" 1>&2
+	exit 7
+    fi
+    if [[ ! -s $TMP_AUTHOR_HANDLE_INVENTORY ]]; then
+	echo "$0: ERROR: gzip --best --force < $TMP_AUTHOR_HANDLE_INVENTORY " \
+	 "> $TMP_AUTHOR_HANDLE_INVENTORY_GZ formed an empty file" 1>&2
+	exit 7
+    fi
+
+elif [[ $V_FLAG -ge 5 ]]; then
+    echo  "$0: debug[5]: because of -n, did not run: run: gzip --best --force < $TMP_AUTHOR_HANDLE_INVENTORY " \
+	  "> $TMP_AUTHOR_HANDLE_INVENTORY_GZ" 1>&2
+fi
+
+
+# move the compressed zcat file into place
+#
+if [[ $V_FLAG -ge 1 ]]; then
+    echo "$0: debug[1]: about to run: mv -f $TMP_AUTHOR_HANDLE_INVENTORY_GZ $CAT_FILE" 1>&2
+fi
+if [[ -z $NOOP ]]; then
+
+    mv -f "$TMP_AUTHOR_HANDLE_INVENTORY_GZ" "$CAT_FILE"
+    status="$?"
+    if [[ $status -ne 0 ]]; then
+	echo "$0: ERROR: mv -f $TMP_AUTHOR_HANDLE_INVENTORY_GZ $CAT_FILE failed, error: $status" 1>&2
+	exit 8
+    fi
+    if [[ ! -e $CAT_FILE ]]; then
+	echo "$0: ERROR: does not exist: $CAT_FILE" 1>&2
+	exit 8
+    fi
+    if [[ ! -f $CAT_FILE ]]; then
+	echo "$0: ERROR: not a file: $CAT_FILE" 1>&2
+	exit 8
+    fi
+    if [[ ! -r $CAT_FILE ]]; then
+	echo "$0: ERROR: not a readable file: $CAT_FILE" 1>&2
+	exit 8
+    fi
+    if [[ ! -s $CAT_FILE ]]; then
+	echo "$0: ERROR: not a non-empty readable file: $CAT_FILE" 1>&2
+	exit 8
+    fi
+
+elif [[ $V_FLAG -ge 5 ]]; then
+    echo  "$0: debug[5]: because of -n, did not run: mv -f $TMP_AUTHOR_HANDLE_INVENTORY_GZ $CAT_FILE" 1>&2
+fi
+
+
+# All Done!!! All Done!!! -- Jessica Noll, Age 2
+#
+exit 0
